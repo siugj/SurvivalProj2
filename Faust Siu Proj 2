@@ -1,0 +1,158 @@
+/***********************************************************/
+/********Survival project II for BST-5200 Fall'16********/
+/**********************Written by *************************/
+/*************Irene Faust  & Gregory Siu****************/
+/***********************************************************/
+/******************Start of Program**********************/
+/***********************************************************/
+
+/*id               	Identification Code                    1 - 500
+age               	Age at Hospital Admission       	   Years
+gender         	    Gender                          	   0 = Male, 1 = Female
+hr                	Initial Heart Rate              	   Beats per minute
+sysbp           	Initial Systolic Blood Pressure        mmHg                    
+diasbp  	        Initial Diastolic Blood Pressure       mmHg
+bmi               	Body Mass Index                    	   kg/m^2
+cvd               	History of Cardiovascular       	   0 = No, 1 = Yes
+                    	Disease
+afb              	Atrial Fibrillation             	   0 = No, 1 = Yes
+sho    	        	Cardiogenic Shock               	   0 = No, 1 = Yes
+chf               	Congestive Heart Complications	       0 = No, 1 = Yes                     
+av3               	Complete Heart Block            	   0 = No, 1 = Yes
+miord            	MI Order                        	   0 = First, 1 = Recurrent
+mitype       	    MI Type                         	   0 = non Q-wave, 1 = Q-wave
+year              	Cohort Year                     	   1 = 1997, 2 = 1999, 3 = 2001
+los               	Length of Hospital Stay         	   Days between Hospital Admission &
+Hospital Discharge   
+dstat               Discharge Status from Hospital    	   0 = Alive, 1 = Dead                    
+lenfol              Total Length of Follow-up       	   Days between Hospital Admission Date & 
+Date of Last Follow-up
+fstat             	Vital Status at Last Follow-up  	   0 = Alive 1 = Dead
+*/
+
+options nofmterr;
+*Date: 10//2016;
+
+proc format;
+	value gend	0='M'
+				1='F';
+	value cohort 	1='1997'
+					2='1999'
+					3='2001';
+	value ny 	0='No'
+				1='Yes';
+	value da	0='Alive'
+				1='Dead';
+run;
+
+data project;
+set '/folders/myfolders/Survival Analysis/Project I and II/whas500.sas7bdat';
+	format gender gend. year cohort. sho chf ny. dstat fstat da.;
+run; 
+
+/*Problem 1&2*/
+/* 1.	Two dependent variables are the time to hospital discharge and time to mortality 
+after discharge. The independent variables include age, BMI, cohort year, sysbp, sho and 
+chf.. All six independent variables should be included in every Cox regression model 
+unless a special model is instructed. Both outcomes must be examined in following tests
+ unless a special model is instructed. All test results are assumed to be obtained from 
+ Proc PHREG. Efron method is used to handle ties.
+2.	Describe the classical and extended Cox models to be used (3 points) and methods to
+ evaluate the proportional assumption (2 points).
+*/
+
+
+PROC PHREG data=project;
+model los*dstat(0) = age bmi year sysbp sho chf;
+run;
+
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp sho chf;
+run;
+/*Problem 1&2 end*/
+
+/*Problem 3*/
+/*
+3.	Evaluate the proportional hazards assumption using the following methods: 
+i.	Use a graphical approach by producing log-negative-log (LLS) plots against 
+log-transformed survival time to evaluate the proportional hazards assumption for 
+chf and sho, respectively (4 points). Interpret the plot results (4 points).*/
+/*
+ii.	Use Schoenfeld residuals to evaluate the proportional hazards assumption for age 
+and sho in a Cox model that includes age, BMI, cohort year, sysbp, sho and chf (2 points),
+ assuming that all variables but age and sho are known to satisfy the proportional 
+ assumption. Both Pearson’s correlation coefficient test and graphical approach 
+ (i.e a Loess curve using Proc SGPlot) are required to show whether the Schoenfeld 
+ residuals are independent of ranked log-transformed failure time variables (10 points). 
+ Develop a null hypothesis for each variable (4 points).  Interpret plots results and 
+ the statistical results and draw your conclusion if age and sho meet the proportional
+  hazards assumption for both outcomes (8 points).
+*/
+
+PROC PHREG data=project;
+model los*dstat(0) = age bmi year sysbp sho chf;
+output out=schsch_dstat ressch=schage schbmi schsysbp schsho schchf;
+	 title 'Checking the PH assumption using the Schoenfeld residuals for dstat';
+run;
+
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp sho chf;
+output out=sch_lenfol ressch=schage schsho;
+	 title 'Checking the PH assumption using the Schoenfeld residuals for lenfol';
+run;
+Data schoenfeld_dstat;
+  set sch_dstat;
+  logdstat=log(dstat);
+  dstatsq=dstat**2;
+Data schoenfeld_lenfol;
+  set sch_lenfol;
+  loglenfol=log(lenfol);
+  lenfolsq=lenfol**2;
+  *This rank part is not right;
+PROC RANK data=schoenfeld_dstat;
+ranks logdstat;
+PROC RANK data=schoenfeld_lenfol;
+ranks loglenfol;
+
+PROC CORR data=schoenfeld_dstat;
+var age sho logdstat schage schsho; run;
+
+PROC CORR data=schoenfeld_lenfol;
+var age sho loglenfol schage schsho; run;
+
+PROC LOESS data=schoenfeld_dstat;
+    model schage=Logdstat/smooth=(0.2 0.4 0.6 0.8);   
+run;
+PROC LOESS data=schoenfeld_dstat;
+    model schsho=Logdstat/smooth=(0.2 0.4 0.6 0.8);    
+run;
+PROC LOESS data=schoenfeld_lenfol;
+    model schage=Logdlenfol/smooth=(0.2 0.4 0.6 0.8);   
+run;
+PROC LOESS data=schoenfeld_lenfol;
+    model schsho=Logdlenfol/smooth=(0.2 0.4 0.6 0.8);    
+run;
+
+proc sgplot data=schoenfeld_dstat; 
+    loess x = logdstat y = schage / clm;
+run;
+proc sgplot data=schoenfeld_dstat; 
+    loess x = logdstat y = schsho / clm;
+run;
+proc sgplot data=schoenfeld_dstat; 
+    loess x = loglenfol y = schage / clm;
+run;
+proc sgplot data=schoenfeld_lenfol; 
+    loess x = loglenfol y = schsho / clm;
+run;
+
+
+/*iii.	Form appropriate time by covariate interaction terms using Proc PHREG and use 
+this method to evaluate whether age, BMI, sysbp, sho and chf satisfy the proportion 
+hazards assumption in a Cox model that includes age, BMI, cohort year, sysbp, sho and 
+chf for the total length of follow-up time (5 points). The time variable to be used to 
+form the interaction term is lenfol. Interpret the Wald chi-square results based on the 
+p-values and draw your conclusion which covariates meet the proportional hazards 
+assumption and which covariate does not for the total length of follow-up time (10 points).
+*/
+
