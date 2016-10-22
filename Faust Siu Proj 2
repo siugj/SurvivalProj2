@@ -77,6 +77,26 @@ run;
 i.	Use a graphical approach by producing log-negative-log (LLS) plots against 
 log-transformed survival time to evaluate the proportional hazards assumption for 
 chf and sho, respectively (4 points). Interpret the plot results (4 points).*/
+/*los*/
+PROC LIFETEST data=project plots=(loglogs) notable;
+time los*dstat(0);
+strata chf;
+run;
+PROC LIFETEST data=project plots=(loglogs) notable;
+Time los*dstat(0);
+strata sho;
+run;
+/*lenfol*/
+PROC LIFETEST data=project plots=(loglogs) notable;
+time lenfol*fstat(0);
+strata chf;
+run;
+PROC LIFETEST data=project plots=(loglogs) notable;
+Time lenfol*fstat(0);
+strata sho;
+run;
+
+
 /*
 ii.	Use Schoenfeld residuals to evaluate the proportional hazards assumption for age 
 and sho in a Cox model that includes age, BMI, cohort year, sysbp, sho and chf (2 points),
@@ -89,63 +109,72 @@ and sho in a Cox model that includes age, BMI, cohort year, sysbp, sho and chf (
   hazards assumption for both outcomes (8 points).
 */
 
+
+
 PROC PHREG data=project;
 model los*dstat(0) = age bmi year sysbp sho chf;
-output out=schsch_dstat ressch=schage schbmi schsysbp schsho schchf;
-	 title 'Checking the PH assumption using the Schoenfeld residuals for dstat';
+output out=sch_los ressch=schage schsho ;
+	 title 'Checking the PH assumption using the Schoenfeld residuals for los';
 run;
 
 PROC PHREG data=project;
 model lenfol*fstat(0) = age bmi year sysbp sho chf;
-output out=sch_lenfol ressch=schage schsho;
+output out=sch_lenfol ressch=schage schsho ;
 	 title 'Checking the PH assumption using the Schoenfeld residuals for lenfol';
 run;
-Data schoenfeld_dstat;
-  set sch_dstat;
-  logdstat=log(dstat);
-  dstatsq=dstat**2;
+Data schoenfeld_los;
+  set sch_los;
+  loglos=log(los);
+  los_sq=los**2;
 Data schoenfeld_lenfol;
   set sch_lenfol;
   loglenfol=log(lenfol);
-  lenfolsq=lenfol**2;
-  *This rank part is not right;
-PROC RANK data=schoenfeld_dstat;
-ranks logdstat;
-PROC RANK data=schoenfeld_lenfol;
-ranks loglenfol;
+  lenfol_sq=lenfol**2;
+  *double check the rank code;
+PROC RANK data=schoenfeld_los out=rank_los ties=mean; 
+var loglos; ranks loglosrank;
+PROC RANK data=schoenfeld_lenfol out=rank_lenfol ties=mean;
+var loglenfol; ranks loglenfolrank;
 
-PROC CORR data=schoenfeld_dstat;
-var age sho logdstat schage schsho; run;
+PROC CORR data=schoenfeld_los nosimple;
+var age sho loglos schage schsho; with los loglos los_sq run;
 
-PROC CORR data=schoenfeld_lenfol;
-var age sho loglenfol schage schsho; run;
+PROC CORR data=schoenfeld_lenfol nosimple;
+var age sho loglenfol schage schsho; with lenfol loglenfol lenfol_sq run;
 
-PROC LOESS data=schoenfeld_dstat;
-    model schage=Logdstat/smooth=(0.2 0.4 0.6 0.8);   
+/*Schoenfeld_los Age LOESS*/
+PROC LOESS data=schoenfeld_los;
+    model schage=loglosrank/smooth=(0.2 0.4 0.6 0.8);   
 run;
-PROC LOESS data=schoenfeld_dstat;
-    model schsho=Logdstat/smooth=(0.2 0.4 0.6 0.8);    
+/*Schoenfeld_los Sho LOESS*/
+PROC LOESS data=schoenfeld_los;
+    model schsho=loglosrank/smooth=(0.2 0.4 0.6 0.8);    
 run;
+/*Age Schoenfeld_lenfol LOESS*/
 PROC LOESS data=schoenfeld_lenfol;
-    model schage=Logdlenfol/smooth=(0.2 0.4 0.6 0.8);   
+    model schage=Loglenfolrank/smooth=(0.2 0.4 0.6 0.8);  
+    ODS SELECT Fitplot; 
 run;
+/*Sho Schoenfeld_lenfol LOESS*/
 PROC LOESS data=schoenfeld_lenfol;
-    model schsho=Logdlenfol/smooth=(0.2 0.4 0.6 0.8);    
+    model schsho=Loglenfolrank/smooth=(0.2 0.4 0.6 0.8);   
+    ODS SELECT Fitplot;
 run;
 
-proc sgplot data=schoenfeld_dstat; 
-    loess x = logdstat y = schage / clm;
+/*Sgplot los for age and sho*/
+proc sgplot data=schoenfeld_los; 
+    loess x = loglos y = schage / clm;
 run;
-proc sgplot data=schoenfeld_dstat; 
-    loess x = logdstat y = schsho / clm;
+proc sgplot data=schoenfeld_los; 
+    loess x = loglos y = schsho / clm;
 run;
+
 proc sgplot data=schoenfeld_dstat; 
     loess x = loglenfol y = schage / clm;
 run;
 proc sgplot data=schoenfeld_lenfol; 
     loess x = loglenfol y = schsho / clm;
 run;
-
 
 /*iii.	Form appropriate time by covariate interaction terms using Proc PHREG and use 
 this method to evaluate whether age, BMI, sysbp, sho and chf satisfy the proportion 
