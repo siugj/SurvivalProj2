@@ -49,17 +49,20 @@ data project;
 set '/folders/myfolders/Survival Analysis/Project I and II/whas500.sas7bdat';
 	format gender gend. year cohort. sho chf ny. dstat fstat da.;
 run; 
-
-/*Problem 1&2*/
-/* 1.	Two dependent variables are the time to hospital discharge and time to mortality 
+/* Problems 1 & 2*/
+/* 1.	
+Two dependent variables are the time to hospital discharge and time to mortality 
 after discharge. The independent variables include age, BMI, cohort year, sysbp, sho and 
 chf.. All six independent variables should be included in every Cox regression model 
 unless a special model is instructed. Both outcomes must be examined in following tests
  unless a special model is instructed. All test results are assumed to be obtained from 
- Proc PHREG. Efron method is used to handle ties.
-2.	Describe the classical and extended Cox models to be used (3 points) and methods to
+ Proc PHREG. Efron method is used to handle ties.*/
+/*
+2.	
+Describe the classical and extended Cox models to be used (3 points) and methods to
  evaluate the proportional assumption (2 points).
 */
+/*Extended Cox model described below at 4.*/
 
 
 PROC PHREG data=project;
@@ -69,11 +72,9 @@ run;
 PROC PHREG data=project;
 model lenfol*fstat(0) = age bmi year sysbp sho chf;
 run;
-/*Problem 1&2 end*/
-
-/*Problem 3*/
 /*
-3.	Evaluate the proportional hazards assumption using the following methods: 
+3.	
+Evaluate the proportional hazards assumption using the following methods: 
 i.	Use a graphical approach by producing log-negative-log (LLS) plots against 
 log-transformed survival time to evaluate the proportional hazards assumption for 
 chf and sho, respectively (4 points). Interpret the plot results (4 points).*/
@@ -81,20 +82,25 @@ chf and sho, respectively (4 points). Interpret the plot results (4 points).*/
 PROC LIFETEST data=project plots=(loglogs) notable;
 time los*dstat(0);
 strata chf;
+title "Checking the PH assumption using log-log survival plot for congestive heart failure";
 run;
 PROC LIFETEST data=project plots=(loglogs) notable;
 Time los*dstat(0);
 strata sho;
+title "Checking the PH assumption using log-log survival plot for cardiogenic shock";
 run;
 /*lenfol*/
 PROC LIFETEST data=project plots=(loglogs) notable;
 time lenfol*fstat(0);
 strata chf;
+title "Checking the PH assumption using log-log survival plot for congestive heart failure";
 run;
 PROC LIFETEST data=project plots=(loglogs) notable;
 Time lenfol*fstat(0);
 strata sho;
+title "Checking the PH assumption using log-log survival plot for cardiogenic shock";
 run;
+
 
 
 /*
@@ -109,54 +115,62 @@ and sho in a Cox model that includes age, BMI, cohort year, sysbp, sho and chf (
   hazards assumption for both outcomes (8 points).
 */
 
-
-
 PROC PHREG data=project;
-model los*dstat(0) = age bmi year sysbp sho chf;
-output out=sch_los ressch=schage schsho ;
+model los*dstat(0) = age sho bmi year sysbp chf;
+output out=sch_los ressch=schage schsho;
 	 title 'Checking the PH assumption using the Schoenfeld residuals for los';
 run;
 
 PROC PHREG data=project;
-model lenfol*fstat(0) = age bmi year sysbp sho chf;
-output out=sch_lenfol ressch=schage schsho ;
+model lenfol*fstat(0) = age sho bmi year sysbp chf;
+output out=sch_lenfol ressch=schage schsho;
 	 title 'Checking the PH assumption using the Schoenfeld residuals for lenfol';
 run;
 Data schoenfeld_los;
   set sch_los;
+  *los=1; *why would this be in the notes? it destroys the data.;
   loglos=log(los);
   los_sq=los**2;
+  run; *Nevermind, didn't have los=1 in statement; *getting invalid argument error in this data. invalid calculation Log(0) when Los=0 for ID478 481 484; 
+* conclusion: These 3 individuals (ID478 481 484) stayed in the hospital less than a day;
 Data schoenfeld_lenfol;
   set sch_lenfol;
+  *lenfol=1; *why would this be in the notes? it destroys the data;
   loglenfol=log(lenfol);
   lenfol_sq=lenfol**2;
-  *double check the rank code;
+  run;
+
+*Ranks the log time for Schoefeld analysis;
 PROC RANK data=schoenfeld_los out=rank_los ties=mean; 
 var loglos; ranks loglosrank;
 PROC RANK data=schoenfeld_lenfol out=rank_lenfol ties=mean;
 var loglenfol; ranks loglenfolrank;
 
 PROC CORR data=schoenfeld_los nosimple;
-var age sho loglos schage schsho; with los loglos los_sq run;
+var schage schsho ; with los loglos los_sq; run;
+*checked schbmi schyear schsysbp schchf which are insignificant;
+/*Conclusion: Age and Shock does not violate the PH assumption for Length of Stay, loglos, and los_sq.*/
 
 PROC CORR data=schoenfeld_lenfol nosimple;
-var age sho loglenfol schage schsho; with lenfol loglenfol lenfol_sq run;
+var schage schsho; with lenfol loglenfol lenfol_sq; run;
+*checked schbmi schyear schsysbp schchf which are insignificant;
+/*Conclusion: Shock does violate the PH assumption for Length of follow-up, and loglenfol. Shock does not violate the PH assumption for lenfol_sq*/
 
 /*Schoenfeld_los Age LOESS*/
-PROC LOESS data=schoenfeld_los;
+PROC LOESS data=rank_los;
     model schage=loglosrank/smooth=(0.2 0.4 0.6 0.8);   
-run;
+run; *smoothing error due to incorrect data code;
 /*Schoenfeld_los Sho LOESS*/
-PROC LOESS data=schoenfeld_los;
+PROC LOESS data=rank_los;
     model schsho=loglosrank/smooth=(0.2 0.4 0.6 0.8);    
-run;
+run; *smoothing error due to incorrect data code;
 /*Age Schoenfeld_lenfol LOESS*/
-PROC LOESS data=schoenfeld_lenfol;
+PROC LOESS data=rank_lenfol;
     model schage=Loglenfolrank/smooth=(0.2 0.4 0.6 0.8);  
     ODS SELECT Fitplot; 
 run;
 /*Sho Schoenfeld_lenfol LOESS*/
-PROC LOESS data=schoenfeld_lenfol;
+PROC LOESS data=rank_lenfol;
     model schsho=Loglenfolrank/smooth=(0.2 0.4 0.6 0.8);   
     ODS SELECT Fitplot;
 run;
@@ -169,12 +183,14 @@ proc sgplot data=schoenfeld_los;
     loess x = loglos y = schsho / clm;
 run;
 
-proc sgplot data=schoenfeld_dstat; 
+proc sgplot data=schoenfeld_lenfol; 
     loess x = loglenfol y = schage / clm;
 run;
 proc sgplot data=schoenfeld_lenfol; 
     loess x = loglenfol y = schsho / clm;
 run;
+
+
 
 /*iii.	Form appropriate time by covariate interaction terms using Proc PHREG and use 
 this method to evaluate whether age, BMI, sysbp, sho and chf satisfy the proportion 
@@ -184,4 +200,129 @@ form the interaction term is lenfol. Interpret the Wald chi-square results based
 p-values and draw your conclusion which covariates meet the proportional hazards 
 assumption and which covariate does not for the total length of follow-up time (10 points).
 */
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp sho chf age_t bmi_t year_t sysbp_t sho_t chf_t / rl ties=efron;
+age_t       =  lenfol*age;
+bmi_t       =  lenfol*bmi;
+year_t      =  lenfol*year; 
+sysbp_t     =  lenfol*sysbp;
+sho_t       =  lenfol*sho;
+chf_t       = lenfol*chf;
+Global_poportionality_test: test age_t, bmi_t, year_t, sysbp_t, sho_t, chf_t;
+run;
+/*Conclusion: Shock has significant time interaction (p=0.0499). 
+It will be included in the final model for part 4.*/
 
+/*4.	Based on the test results of the proportional hazard assumption obtained in 
+#3.iii,  you will specify a final Cox model including the dependent variable of the length
+of follow up (i.e. lenfol) and independent variables: age, BMI, cohort year, sysbp, chf, 
+sho, and an appropriate time interaction term (i.e. involving lenfol variable). (2 point)
+Show and interpret the adjusted HR and 95%CI for BMI based on every 5-unit increase. 
+(4 points) Calculate a correct HR for sho at 250, 500, 1000, and 1500 days, respectively.
+You may use a calculator or Microsoft Excel to calculate those HRs. SAS is not helpful.
+(4 points) Interpret adjusted HRs for sho (4 points). Then draw a conclusion about the 
+time effect on sho. (2 point) */
+ODS output globaltests(match_all persist=proc)=lrtest;
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp chf  / rl ties=efron;
+title2 "Cox model with main effects";
+run;
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp sho chf sho_t / rl ties=efron;
+sho_t       =  lenfol*sho;
+hazardratio bmi / units=5 cl=pl;
+title2 "Cox model with interaction term";
+run;
+
+/*VV Cox model without Sho for Extended Cox comparison VV*/
+
+ODS output close;
+/*Calculates Likelihood ratio of two models*/
+Proc print data=lrtest; 
+  title ‘Likelihood ratio chisquare scores from the main effect model’;
+run;
+Proc print data=lrtest1; 
+   title ‘Likelihood ratio chisquare scores from the interaction model’;
+run;
+
+/*determine model difference using chisquare from -2loglikelihood*/
+Data report1; 
+*Calculate p-value for the LR chisquare test;
+	Merge lrtest (rename=(chisq=chisq1 df=df1))
+	      lrtest1(rename=(chisq=chisq2 df=df2));
+	IF test = "Likelihood Ratio"; 
+             *variable test=value in previous table;
+	DF=df2 - df1;
+	chisq=chisq2-chisq1;
+	pvalue=1-probchi(chisq, DF); run;
+proc print data=report split="*" noobs;
+	var chisq df pvalue;
+	Label chisq="Likelihood Ratio*Test Statistics*Comparing *Modelx and Modelm"
+			DF="Degree of Freedom"
+			pvalue="p-value";
+	title "Pooled LR Test for Interaction";
+run;
+/*need to calculate HR for Sho*Lenfol (250, 500, 1000, 15000) by hand*/
+/*Conclusion: Likelihood ratio test indicates the Sho*lenfol interaction 
+term significantly improves the model (p=0.0004)*/
+
+
+/*
+5.	Based on the test results of the proportional hazard assumption obtained in #3.iii, 
+estimate adjusted hazards ratio (HR) and 95% confidence interval of BMI, age and chf 
+using a Cox regression model that is stratified by sho and includes independent 
+variables:  age, BMI, cohort year, sysbp, and chf. Discuss the assumption of the 
+stratification (2 points). Show and interpret the adjusted HR for BMI (i.e. every 5 units),
+ age (i.e. every 10 years) and chf from the stratified Cox models. (8 points)
+*/
+*not sure why sysbp is insignificant; 
+/*VV Extended Cox model stratified on Sho which violates PH assumption VV*/
+
+ODS output globaltests(match_all persist=proc)=lrtest_ex;
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp chf / rl ties=efron;
+strata sho;
+hazardratio bmi / units = 5;
+hazardratio age / units = 10;
+hazardratio chf / ;
+Title "Extended Cox model stratified by Sho";
+run;
+
+PROC PHREG data=project;
+model lenfol*fstat(0) = age bmi year sysbp chf age*sho bmi*sho year*sho sysbp*sho chf*sho / rl ties=efron;
+strata sho;
+hazardratio bmi / units = 5;
+hazardratio age / units = 10;
+hazardratio chf / ;
+Title "Extended Cox model stratified by Sho with Sho interaction";
+run;
+ODS output close;
+/*Calculates Likelihood ratio of two models*/
+Proc print data=lrtest_ex; 
+  title ‘Likelihood ratio chisquare scores from the main effect model’;
+run;
+Proc print data=lrtest_ex1; 
+   title ‘Likelihood ratio chisquare scores from the interaction model’;
+run;
+
+/*determine model difference using chisquare from -2loglikelihood*/
+Data report2; 
+*Calculate p-value for the LR chisquare test;
+	Merge lrtest_ex (rename=(chisq=chisq1 df=df1))
+	      lrtest_ex1(rename=(chisq=chisq2 df=df2));
+	IF test = "Likelihood Ratio"; 
+             *variable test=value in previous table;
+	DF=df2 - df1;
+	chisq=chisq2-chisq1;
+	pvalue=1-probchi(chisq, DF); run;
+proc print data=report2 split="*" noobs;
+	var chisq df pvalue;
+	Label chisq="Likelihood Ratio*Test Statistics*Comparing *Modelx and Modelm"
+			DF="Degree of Freedom"
+			pvalue="p-value";
+	title "Pooled LR Test for Interaction";
+run;
+/*Conclusion: Stratifying by Sho improves model fit. 
+Sho does not interact with any of the model variables in an extended Cox model. 
+The extended Cox model with Sho*lenfol is significantly better model than the 
+base Cox model.*/
