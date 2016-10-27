@@ -175,29 +175,31 @@ PROC LOESS data=rank_lenfol;
     ODS SELECT Fitplot;
 run;
 
+
 /*SGPLOT SCHOENFELD AGE los*/
-proc sgplot data = schoenfeld_los;
-loess x = loglos y = schage/ clm;
-title 'Age Residuals by Time';
+proc sgplot data = rank_los;
+loess x = loglosrank y = schage/ clm;
+title 'Age Residuals by Ranked Log Time';
 run;
 
 /*SGPLOT SCHOENFELD SHO los*/
-proc sgplot data = schoenfeld_los;
-loess x = loglos y = schsho / clm;
-title 'SHO Residuals by Time';
+proc sgplot data = rank_los;
+loess x = loglosrank y = schsho / clm;
+title 'SHO Residuals by Ranked Log Time';
 run;
 
 /*SGPLOT SCHOENFELD AGE lenfol*/
-proc sgplot data=schoenfeld_lenfol;
-loess x = loglenfol y = schage / clm;
-title 'Age Residuals by Time';
+proc sgplot data=rank_lenfol;
+loess x = loglenfolrank y = schage / clm;
+title 'Age Residuals by Ranked Log Time';
 run;
 
 /*SGPLOT SCHOENFELD SHO lenfol*/
-proc sgplot data=schoenfeld_lenfol;
-loess x = loglenfol y = schsho / clm;
-title 'SHO Residuals by Time';
+proc sgplot data=rank_lenfol;
+loess x = loglenfolrank y = schsho / clm;
+title 'SHO Residuals by Ranked Log Time';
 run;
+
 
 
 
